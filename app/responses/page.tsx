@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase';
 export const dynamic = 'force-dynamic';
 
 export default function ResponsesDashboard() {
-  const [responses, setResponses] = useState<any[]>([]);
+  const [groupedResponses, setGroupedResponses] = useState<any>({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -14,74 +14,92 @@ export default function ResponsesDashboard() {
   }, []);
 
   async function fetchResponses() {
-    // Fetch logs and join with the stores table to get the store name
+    setLoading(true);
+    // Fetch logs from today
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
     const { data, error } = await supabase
       .from('store_responses')
       .select(`
         *,
         stores ( store_name, store_type )
       `)
-      .order('created_at', { ascending: false }); // Newest first
+      .gte('created_at', today.toISOString())
+      .order('created_at', { ascending: true }); // Chronological order for reading
 
     if (!error && data) {
-      setResponses(data);
+      // Group the flat array into a structured object by Store Name
+      const grouped = data.reduce((acc: any, log: any) => {
+        const storeName = log.stores?.store_name || 'Unknown Store';
+        if (!acc[storeName]) {
+          acc[storeName] = { 
+            type: log.stores?.store_type, 
+            logs: [] 
+          };
+        }
+        acc[storeName].logs.push(log);
+        return acc;
+      }, {});
+      
+      setGroupedResponses(grouped);
     }
     setLoading(false);
   }
 
   return (
     <div className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-4xl mx-auto">
         <div className="flex justify-between items-center mb-8">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Partner Responses</h1>
-            <p className="text-gray-500">Live feed of WhatsApp replies from store leaders.</p>
+            <h1 className="text-2xl font-bold text-gray-900">Today's Store Summaries</h1>
+            <p className="text-gray-500">Live agentic investigations grouped by store.</p>
           </div>
-          <button onClick={fetchResponses} className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm hover:bg-gray-50 shadow-sm">
-            Refresh Data
+          <button 
+            onClick={fetchResponses} 
+            className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm hover:bg-gray-50 shadow-sm transition-colors"
+          >
+            Refresh Feed
           </button>
         </div>
 
         {loading ? (
-          <p className="text-gray-500">Loading responses...</p>
+          <p className="text-gray-500 animate-pulse">Syncing conversations...</p>
+        ) : Object.keys(groupedResponses).length === 0 ? (
+          <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-100 text-center text-gray-500">
+            No active conversations today.
+          </div>
         ) : (
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Time</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Store</th>
-                  {/* Fixed the apostrophes on the next two lines */}
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Partner&apos;s Reply</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">AI&apos;s Action</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {responses.map((log) => (
-                  <tr key={log.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {new Date(log.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">{log.stores?.store_name}</div>
-                      <div className="text-xs text-gray-500">{log.stores?.store_type}</div>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-900 w-1/3">
-                      {log.partner_message}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-500 w-1/3">
-                      {log.ai_reply}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            
-            {responses.length === 0 && (
-              <div className="p-8 text-center text-gray-500">
-                No responses logged yet. Start a broadcast!
+          <div className="space-y-6">
+            {Object.keys(groupedResponses).map((storeName) => (
+              <div key={storeName} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                {/* Card Header */}
+                <div className="bg-gray-50 px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+                  <h2 className="font-bold text-gray-800 text-lg">{storeName}</h2>
+                  <span className="px-3 py-1 bg-blue-100 text-blue-800 text-xs font-semibold rounded-full">
+                    {groupedResponses[storeName].type}
+                  </span>
+                </div>
+                
+                {/* Conversation Thread */}
+                <div className="p-6 space-y-4">
+                  {groupedResponses[storeName].logs.map((log: any, index: number) => (
+                    <div key={log.id} className="text-sm">
+                      <div className="bg-gray-100 p-3 rounded-lg rounded-tl-none inline-block max-w-[80%] text-gray-800 mb-2">
+                        <span className="font-bold text-xs text-gray-500 block mb-1">Partner Reply:</span>
+                        {log.partner_message}
+                      </div>
+                      <div className="flex justify-end">
+                        <div className="bg-blue-50 border border-blue-100 p-3 rounded-lg rounded-tr-none inline-block max-w-[80%] text-blue-900">
+                          <span className="font-bold text-xs text-blue-400 block mb-1">AI Agent:</span>
+                          {log.ai_reply}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
-            )}
+            ))}
           </div>
         )}
       </div>
