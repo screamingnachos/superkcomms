@@ -65,40 +65,51 @@ export async function POST(req: Request) {
     const waId = body.waId; 
     const senderName = body.senderName;
 
-    console.log(`📩 Received message from ${senderName} (${waId}): "${userMessage}"`);
+    // DIAGNOSTIC LOG 1: Confirm payload extraction
+    console.log(`[DEBUG] Ingested Webhook. waId: "${waId}", message: "${userMessage}"`);
 
-    // Step A: Look up the store
-    const { data: storeProfile, error } = await supabase
+    const { data: storeProfile, error: lookupError } = await supabase
       .from('stores')
       .select('*')
       .eq('whatsapp_number', waId)
       .single();
 
-    if (error || !storeProfile) {
-      console.log(`⚠️ Unrecognized number: ${waId}. Ignoring.`);
+    // DIAGNOSTIC LOG 2: Check if database lookup failed
+    if (lookupError) {
+      console.error(`[DEBUG] Supabase Lookup Error for number ${waId}:`, lookupError.message);
+      return NextResponse.json({ status: 'lookup_error', error: lookupError.message }, { status: 200 });
+    }
+
+    if (!storeProfile) {
+      console.log(`[DEBUG] Lookup succeeded but returned 0 rows for number: ${waId}`);
       return NextResponse.json({ status: 'unrecognized_user' }, { status: 200 });
     }
 
-    // Step B: Ask OpenAI what to reply
+    console.log(`[DEBUG] Found matching store: ${storeProfile.store_name} (ID: ${storeProfile.store_id})`);
+
     const aiReplyText = await generateAIResponse(storeProfile, userMessage);
 
-    // Step C: Send the reply via WATI
     if (aiReplyText) {
-      await sendWatiSessionMessage(waId, aiReplyText);
-   }
+       await sendWatiSessionMessage(waId, aiReplyText);
+    }
 
-   // NEW: Step D: Save the response so you can view it on your dashboard
-   await supabase.from('store_responses').insert({
-     store_id: storeProfile.store_id,
-     partner_message: userMessage,
-     ai_reply: aiReplyText,
-     // Date defaults to today in the database
-   });
+    // DIAGNOSTIC LOG 3: Catch exact insert failures
+    const { error: insertError } = await supabase.from('store_responses').insert({
+      store_id: storeProfile.store_id,
+      partner_message: userMessage,
+      ai_reply: aiReplyText,
+    });
 
+    if (insertError) {
+      console.error(`[DEBUG] Supabase Insert Error into store_responses:`, insertError.message);
+      return NextResponse.json({ status: 'insert_error', error: insertError.message }, { status: 200 });
+    }
+
+    console.log(`[DEBUG] Successfully saved log to database for ${storeProfile.store_name}`);
     return NextResponse.json({ success: true }, { status: 200 });
 
   } catch (error: any) {
-    console.error("Webhook Error:", error);
+    console.error("[DEBUG] Global Try/Catch Caught Fatal Crash:", error);
     return NextResponse.json({ error: error.message }, { status: 200 });
   }
 }
