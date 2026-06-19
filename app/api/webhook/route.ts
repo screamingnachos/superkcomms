@@ -69,21 +69,20 @@ export async function POST(req: Request) {
     const aiReplyText = completion.choices[0].message.content;
 
     // 4. Send via WATI with error catching
-    // 4. Send via WATI with error catching
     if (aiReplyText) {
-      const WATI_URL = process.env.WATI_API_URL as string; // Will now correctly be .../466818
+      const WATI_URL = process.env.WATI_API_URL as string; 
       const WATI_TOKEN = process.env.WATI_BEARER_TOKEN as string;
       
-      const endpoint = `${WATI_URL}/api/v1/sendSessionMessage/${waId}`;
+      // FIX: Encode the AI text and attach it directly to the URL!
+      const endpoint = `${WATI_URL}/api/v1/sendSessionMessage/${waId}?messageText=${encodeURIComponent(aiReplyText)}`;
       console.log(`[DEBUG] Attempting WATI Reply to: ${endpoint}`);
 
       const watiResponse = await fetch(endpoint, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${WATI_TOKEN}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ messageText: aiReplyText }) // Some WATI versions require { text: aiReplyText } instead!
+          'Authorization': `Bearer ${WATI_TOKEN}`
+          // Content-Type application/json and the JSON body are completely removed!
+        }
       });
 
       const rawText = await watiResponse.text();
