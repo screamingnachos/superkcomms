@@ -84,8 +84,16 @@ export async function POST(req: Request) {
 
     // Step C: Send the reply via WATI
     if (aiReplyText) {
-       await sendWatiSessionMessage(waId, aiReplyText);
-    }
+      await sendWatiSessionMessage(waId, aiReplyText);
+   }
+
+   // NEW: Step D: Save the response so you can view it on your dashboard
+   await supabase.from('store_responses').insert({
+     store_id: storeProfile.store_id,
+     partner_message: userMessage,
+     ai_reply: aiReplyText,
+     // Date defaults to today in the database
+   });
 
     return NextResponse.json({ success: true }, { status: 200 });
 
