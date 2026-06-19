@@ -58,7 +58,7 @@ export async function POST(req: Request) {
     const body = await req.json();
     console.log(`[DEBUG RAW BODY]:`, JSON.stringify(body, null, 2));
     if (body.eventType !== 'messageReceived') {
-      onsole.log(`[DEBUG] Ignored event because type was: ${body.eventType}`);
+      console.log(`[DEBUG] Ignored event because type was: ${body.eventType}`);
       return NextResponse.json({ status: 'ignored' }, { status: 200 });
     }
 
