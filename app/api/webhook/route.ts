@@ -56,8 +56,9 @@ async function sendWatiSessionMessage(waId: string, text: string) {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-
+    console.log(`[DEBUG RAW BODY]:`, JSON.stringify(body, null, 2));
     if (body.eventType !== 'messageReceived') {
+      onsole.log(`[DEBUG] Ignored event because type was: ${body.eventType}`);
       return NextResponse.json({ status: 'ignored' }, { status: 200 });
     }
 
