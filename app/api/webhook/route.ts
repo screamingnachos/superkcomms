@@ -69,21 +69,25 @@ export async function POST(req: Request) {
     const aiReplyText = completion.choices[0].message.content;
 
     // 4. Send via WATI with error catching
+    // 4. Send via WATI with error catching
     if (aiReplyText) {
-      const WATI_URL = process.env.WATI_API_URL as string;
+      const WATI_URL = process.env.WATI_API_URL as string; // Will now correctly be .../466818
       const WATI_TOKEN = process.env.WATI_BEARER_TOKEN as string;
       
-      const watiResponse = await fetch(`${WATI_URL}/api/v1/sendSessionMessage/${waId}`, {
+      const endpoint = `${WATI_URL}/api/v1/sendSessionMessage/${waId}`;
+      console.log(`[DEBUG] Attempting WATI Reply to: ${endpoint}`);
+
+      const watiResponse = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${WATI_TOKEN}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ messageText: aiReplyText })
+        body: JSON.stringify({ messageText: aiReplyText }) // Some WATI versions require { text: aiReplyText } instead!
       });
 
-      const watiResult = await watiResponse.json();
-      console.log(`[DEBUG] WATI Delivery Status:`, watiResult);
+      const rawText = await watiResponse.text();
+      console.log(`[DEBUG] WATI Reply Status [${watiResponse.status}]:`, rawText);
     }
 
     // 5. Save the interaction
